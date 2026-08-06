@@ -190,27 +190,27 @@ def _load_movie_core(cur, movie_id: int):
             %s,%s,%s,%s, %s,NOW()
         )
         ON CONFLICT (tmdb_movie_id) DO UPDATE
-            SET imdb_id           = EXCLUDED.imdb_id,
-                title             = EXCLUDED.title,
-                original_title    = EXCLUDED.original_title,
+            SET imdb_id = EXCLUDED.imdb_id,
+                title = EXCLUDED.title,
+                original_title = EXCLUDED.original_title,
                 original_language = EXCLUDED.original_language,
-                overview          = EXCLUDED.overview,
-                tagline           = EXCLUDED.tagline,
-                release_date      = EXCLUDED.release_date,
-                status            = EXCLUDED.status,
-                revenue           = EXCLUDED.revenue,
-                budget            = EXCLUDED.budget,
-                runtime           = EXCLUDED.runtime,
-                popularity        = EXCLUDED.popularity,
-                vote_average      = EXCLUDED.vote_average,
-                vote_count        = EXCLUDED.vote_count,
-                poster_path       = EXCLUDED.poster_path,
-                backdrop_path     = EXCLUDED.backdrop_path,
-                homepage          = EXCLUDED.homepage,
-                adult             = EXCLUDED.adult,
-                collection_id     = EXCLUDED.collection_id,
-                etl_synced_at     = NOW(),
-                updated_at        = NOW()
+                overview = EXCLUDED.overview,
+                tagline = EXCLUDED.tagline,
+                release_date = EXCLUDED.release_date,
+                status = EXCLUDED.status,
+                revenue = EXCLUDED.revenue,
+                budget = EXCLUDED.budget,
+                runtime = EXCLUDED.runtime,
+                popularity = EXCLUDED.popularity,
+                vote_average = EXCLUDED.vote_average,
+                vote_count = EXCLUDED.vote_count,
+                poster_path = EXCLUDED.poster_path,
+                backdrop_path = EXCLUDED.backdrop_path,
+                homepage = EXCLUDED.homepage,
+                adult = EXCLUDED.adult,
+                collection_id = EXCLUDED.collection_id,
+                etl_synced_at = NOW(),
+                updated_at = NOW()
     """
 
     release_date = data.get("release_date") or None
