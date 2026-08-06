@@ -112,3 +112,181 @@ def _upsert_person_full(cur, person_id: int):
             aka_rows
         )
 
+def _upsert_company(cur, c: dict):
+    """Upsert Company từ production_companies entry trong movie.json."""
+    sql = """
+        INSERT INTO Company (company_id, tmdb_company_id, name, logo_path, origin_country)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (tmdb_company_id) DO UPDATE
+            SET name           = EXCLUDED.name,
+                logo_path      = EXCLUDED.logo_path,
+                origin_country = EXCLUDED.origin_country
+    """
+    origin = c.get("origin_country") or None
+    if origin == "":
+        origin = None
+    cur.execute(sql, (
+        c["id"], c["id"],
+        c.get("name", ""),
+        c.get("logo_path"),
+        origin,
+    ))
+
+def _upsert_collection(cur, col: dict):
+    """col = data['belongs_to_collection'] (có thể None)."""
+    if not col or not col.get("id"):
+        return
+    sql = """
+        INSERT INTO Collection (
+            collection_id, tmdb_collection_id, name,
+            poster_path, backdrop_path
+        )
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (tmdb_collection_id) DO UPDATE
+            SET name          = EXCLUDED.name,
+                poster_path   = EXCLUDED.poster_path,
+                backdrop_path = EXCLUDED.backdrop_path
+    """
+    cur.execute(sql, (
+        col["id"], col["id"],
+        col.get("name", ""),
+        col.get("poster_path"),
+        col.get("backdrop_path"),
+    ))
+
+def _load_movie_core(cur, movie_id: int):
+
+    data = tmdb_get(f"/movie/{movie_id}", params={"language": "en-US"})
+    if not data or "id" not in data:
+        return False, None
+
+    belongToCollection = data.get("belongs_to_collection")
+    _upsert_collection (cur, belongToCollection)
+    collection_db_id = belongToCollection["id"] if belongToCollection else None
+
+    def _safe(v, default = None):
+        return v if v is not None else default
+
+    valid_statuses = {
+        "Rumored", "Planned", "In Production",
+        "Post Production", "Released", "Canceled"
+    }
+
+    status = data.get("status")
+    if status not in valid_statuses:
+        status = None
+
+    movie_sql = """
+        INSERT INTO Movie (
+            movie_id, tmdb_movie_id, imdb_id, title, original_title,
+            original_language, overview, tagline, release_date, status,
+            revenue, budget, runtime, popularity, vote_average, vote_count,
+            poster_path, backdrop_path, homepage, adult,
+            collection_id, etl_synced_at
+        )
+        VALUES (
+            %s,%s,%s,%s,%s, %s,%s,%s,%s,%s,
+            %s,%s,%s,%s,%s,%s,
+            %s,%s,%s,%s, %s,NOW()
+        )
+        ON CONFLICT (tmdb_movie_id) DO UPDATE
+            SET imdb_id           = EXCLUDED.imdb_id,
+                title             = EXCLUDED.title,
+                original_title    = EXCLUDED.original_title,
+                original_language = EXCLUDED.original_language,
+                overview          = EXCLUDED.overview,
+                tagline           = EXCLUDED.tagline,
+                release_date      = EXCLUDED.release_date,
+                status            = EXCLUDED.status,
+                revenue           = EXCLUDED.revenue,
+                budget            = EXCLUDED.budget,
+                runtime           = EXCLUDED.runtime,
+                popularity        = EXCLUDED.popularity,
+                vote_average      = EXCLUDED.vote_average,
+                vote_count        = EXCLUDED.vote_count,
+                poster_path       = EXCLUDED.poster_path,
+                backdrop_path     = EXCLUDED.backdrop_path,
+                homepage          = EXCLUDED.homepage,
+                adult             = EXCLUDED.adult,
+                collection_id     = EXCLUDED.collection_id,
+                etl_synced_at     = NOW(),
+                updated_at        = NOW()
+    """
+
+    release_date = data.get("release_date") or None
+    if release_date == "":
+        release_date = None
+
+    cur.execute(movie_sql, (
+        data["id"], data["id"],
+        data.get("imdb_id"),
+        data.get("title", ""),
+        data.get("original_title", ""),
+        data.get("original_language", "en"),
+        data.get("overview"),
+        data.get("tagline"),
+        release_date,
+        status,
+        _safe(data.get("revenue"), 0),
+        _safe(data.get("budget"), 0),
+        data.get("runtime"),
+        _safe(data.get("popularity"), 0),
+        _safe(data.get("vote_average"), 0),
+        _safe(data.get("vote_count"), 0),
+        data.get("poster_path"),
+        data.get("backdrop_path"),
+        data.get("homepage"),
+        bool(data.get("adult", False)),
+        collection_db_id,
+    ))
+
+    mid = data["id"]
+
+    cur.execute("DELETE FROM Movie_Genre WHERE movie_id = %s", (mid,))
+    for g in (data.get("genres") or []):
+        if g.get("id"):
+            cur.execute(
+                """INSERT INTO Movie_Genre (movie_id, genre_id)
+                   VALUES (%s,%s) ON CONFLICT DO NOTHING""",
+                (mid, g["id"])
+            )
+
+    cur.execute("DELETE FROM Movie_Country WHERE movie_id = %s", (mid,))
+    for c in (data.get("production_countries") or []):
+        if c.get("iso_3166_1"):
+            cur.execute(
+                """INSERT INTO Movie_Country (movie_id, iso_3166_1)
+                   VALUES (%s,%s) ON CONFLICT DO NOTHING""",
+                (mid, c["iso_3166_1"])
+            )
+
+    cur.execute("DELETE FROM Movie_Language WHERE movie_id = %s", (mid,))
+    orig_lang = data.get("original_language", "en")
+
+    cur.execute(
+        """INSERT INTO Movie_Language (movie_id, iso_639_1, language_type)
+           VALUES (%s,%s,'original') ON CONFLICT DO NOTHING""",
+        (mid, orig_lang)
+    )
+
+    for lang in (data.get("spoken_languages") or []):
+        code = lang.get("iso_639_1")
+        if code and code != orig_lang:
+            cur.execute(
+                """INSERT INTO Movie_Language (movie_id, iso_639_1, language_type)
+                   VALUES (%s,%s,'spoken') ON CONFLICT DO NOTHING""",
+                (mid, code)
+            )
+
+    cur.execute("DELETE FROM Movie_Company WHERE movie_id = %s", (mid,))
+    for comp in (data.get("production_companies") or []):
+        if comp.get("id"):
+            _upsert_company(cur, comp)
+            cur.execute(
+                """INSERT INTO Movie_Company (movie_id, company_id)
+                   VALUES (%s,%s) ON CONFLICT DO NOTHING""",
+                (mid, comp["id"])
+            )
+
+    return True, data
+
