@@ -280,7 +280,6 @@ def _load_tv_series_keywords(cur, series_id: int):
     if not data:
         return 0
  
-    # Lưu ý: endpoint TV trả về "results", không phải "keywords" như /movie/{id}/keywords
     keywords = data.get("results") or []
  
     cur.execute("DELETE FROM TV_Keyword WHERE series_id = %s", (series_id,))
@@ -510,12 +509,6 @@ def _load_episode_cast_crew(cur, episode_id: int, ep: dict, dept_map: dict, job_
  
 def _load_tv_seasons_and_episodes(cur, series_id: int, seasons_summary: list,
                                    dept_map: dict, job_map: dict):
-    """
-    seasons_summary = series_data["seasons"] — đã có sẵn từ response /tv/{series_id}
-    trong _load_tv_serie_core, nên không cần gọi lại API để lấy danh sách season.
-    Với mỗi season, gọi /tv/{series_id}/season/{season_number} để lấy episodes
-    (kèm crew + guest_stars ngay trong response, không cần gọi riêng từng episode).
-    """
     season_count = 0
     episode_count = 0
     cast_count = 0
