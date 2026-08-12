@@ -195,7 +195,7 @@ def load_certifications_movie():
             raw_order = c.get("order", 0)
             cert_order = max(1, int(raw_order) + 1) if raw_order == 0 else max(1, int(raw_order))
             
-            certification = (c.get("certification") or "")[:20]   # ← truncate 20 ký tự
+            certification = (c.get("certification") or "")[:20]
 
             rows.append((
                 country_code,
@@ -241,7 +241,7 @@ def load_certifications_tv():
             raw_order = c.get("order", 0)
             cert_order = max(1, int(raw_order) + 1) if raw_order == 0 else max(1, int(raw_order))
             
-            certification = (c.get("certification") or "")[:20]   # ← truncate 20 ký tự
+            certification = (c.get("certification") or "")[:20]
 
             rows.append((
                 country_code,

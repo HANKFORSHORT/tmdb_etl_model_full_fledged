@@ -136,19 +136,10 @@ def _load_tv_serie_core(cur, series_id: int, genre_map: dict):
     cur.execute("DELETE FROM tv_language WHERE series_id = %s", (tv_s_id,))
     orig_lang = data.get("original_language", "en")
     cur.execute(
-        """INSERT INTO tv_language (series_id, iso_639_1, language_type)
-           VALUES (%s,%s,'original') ON CONFLICT DO NOTHING""",
+        """INSERT INTO tv_language (series_id, iso_639_1)
+           VALUES (%s,%s) ON CONFLICT DO NOTHING""",
         (tv_s_id, orig_lang)
     )
-
-    for lang in (data.get("spoken_languages") or []):
-        code = lang.get("iso_639_1")
-        if code and code != orig_lang:
-            cur.execute(
-                """INSERT INTO tv_language (series_id, iso_639_1, language_type)
-                   VALUES (%s,%s,'spoken') ON CONFLICT DO NOTHING""",
-                (tv_s_id, code)
-            )
 
     cur.execute("DELETE FROM tv_company WHERE series_id = %s", (tv_s_id,))
     for comp in (data.get("production_companies") or []):
@@ -162,12 +153,23 @@ def _load_tv_serie_core(cur, series_id: int, genre_map: dict):
 
     cur.execute("DELETE FROM tv_creator where series_id=%s", (tv_s_id,))
     for w in (data.get("created_by") or []):
-        if w.get("id"):
-            cur.execute(
-                """ INSERT INTO tv_creator (series_id, person_id, credit_id)
-                    VALUES (%s,%s,%s) ON CONFLICT DO NOTHING""",
-                    (tv_s_id, w["id"], w["credit_id"])
-                    )
+        if not w.get("id"):
+            continue
+
+        credit_id = w.get("credit_id")
+        creator = tmdb_get(f"/credit/{credit_id}", params={"language": "en-US"}) if credit_id else None
+        person = (creator or {}).get("person")
+
+        if config.FETCH_FULL_PERSON_DETAIL:
+            _upsert_person_full(cur, w.get("id"))
+        else:
+            _upsert_person_minimal(cur, person)
+
+        cur.execute(
+            """ INSERT INTO tv_creator (series_id, person_id, credit_id)
+                VALUES (%s,%s,%s) ON CONFLICT DO NOTHING""",
+                (tv_s_id, w["id"], credit_id)
+                )
 
     return True, data
 
@@ -656,6 +658,69 @@ def run_tv_series_etl(series_id: int):
         return False
  
  
+def run_tv_series_etl(series_id: int):
+    etl = ETLLogger(f"tv/{series_id}", tmdb_id=series_id, media_type="tv")
+    etl.start()
+    logger.info(" → [tv] id=%d: starting ETL...", series_id)
+ 
+    try:
+        conn = __import__("db_utils").get_connection()
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    dept_map, job_map = load_dept_job_maps(conn)
+                    provider_map = load_provider_map(conn)
+                    genre_map = load_genre_map(conn)
+ 
+                    ok, series_data = _load_tv_serie_core(cur, series_id, genre_map)
+                    if not ok:
+                        raise ValueError(f"tv/{series_id}: API returned None or error")
+ 
+                    records = 1
+ 
+                    n = _load_tv_series_credits(cur, series_id, dept_map, job_map)
+                    logger.info("    credits: %d people", n)
+                    records += n
+ 
+                    n = _load_tv_series_keywords(cur, series_id)
+                    logger.info("    keywords: %d", n)
+                    records += n
+ 
+                    n = _load_tv_series_watch_providers(cur, series_id, provider_map)
+                    logger.info("    watch_providers: %d links", n)
+                    records += n
+ 
+                    n = _load_tv_series_certifications(cur, series_id)
+                    logger.info("    certifications: %d", n)
+                    records += n
+ 
+                    n_season, n_ep, n_cast, n_crew = _load_tv_seasons_and_episodes(
+                        cur, series_id, series_data.get("seasons") or [], dept_map, job_map
+                    )
+                    logger.info(
+                        "    seasons: %d, episodes: %d, episode_cast: %d, episode_crew: %d",
+                        n_season, n_ep, n_cast, n_crew
+                    )
+                    records += n_season + n_ep + n_cast + n_crew
+ 
+            logger.info(" ✓ [tv] id=%d: DONE (%d records)", series_id, records)
+            etl.finish("success", records=records)
+            return True
+ 
+        except Exception as e:
+            conn.rollback()
+            logger.error(" ✗ [tv] id=%d: FAILED — %s", series_id, e)
+            etl.finish("failed", error=str(e))
+            return False
+        finally:
+            conn.close()
+ 
+    except Exception as e:
+        logger.error(" ✗ [tv] id=%d: DB connection error — %s", series_id, e)
+        etl.finish("failed", error=str(e))
+        return False
+ 
+ 
 def run_tv_series_batch_etl(series_ids: list[int], stop_on_error: bool = False):
     success = 0
     failed = 0
@@ -671,7 +736,7 @@ def run_tv_series_batch_etl(series_ids: list[int], stop_on_error: bool = False):
         else:
             failed += 1
             if stop_on_error:
-                logger.error("stop_on_error=True: dừng tại series_id=%d", sid)
+                logger.error("stop_on_error=True: stopping at series_id=%d", sid)
                 break
  
     logger.info("=" * 60)

@@ -102,7 +102,6 @@ def _upsert_person_full(cur, person_id: int):
         )
 
 def _upsert_company(cur, c: dict):
-    """Upsert Company từ production_companies entry trong movie.json."""
     sql = """
         INSERT INTO Company (company_id, tmdb_company_id, name, logo_path, origin_country)
         VALUES (%s, %s, %s, %s, %s)
@@ -122,17 +121,7 @@ def _upsert_company(cur, c: dict):
     ))
 
 def _get_or_create_genre_id(cur, genre_map: dict, tmdb_genre_id: int, media_type: str, name: str = None) -> int:
-    """
-    Resolve a TMDb genre id + media_type to the surrogate Genre.genre_id,
-    using the in-memory genre_map (loaded once per run via
-    db_utils.load_genre_map) as a cache. Movie and TV genres can share the
-    same tmdb_genre_id, so (tmdb_id, media_type) is what identifies a row.
 
-    Normally every genre already exists because the reference ETL
-    (load_genres_movie / load_genres_tv) runs first — the on-the-fly insert
-    here is just a fallback so movie/TV ETL doesn't hard-fail if a new
-    genre id shows up before the next reference-data refresh.
-    """
     key = (tmdb_genre_id, media_type)
     genre_id = genre_map.get(key)
     if genre_id is not None:

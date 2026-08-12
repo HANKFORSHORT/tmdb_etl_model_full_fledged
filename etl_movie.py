@@ -258,59 +258,36 @@ def _load_movie_credits(cur, movie_id: int, dept_map: dict, job_map: dict):
 
     return count
 
-def _load_movie_keywords(cur, movie_id:int, provider_map: dict):
+def _load_movie_keywords(cur, movie_id: int):
     data = tmdb_get(f"/movie/{movie_id}/keywords")
     if not data:
         return 0
 
-    m_id = movie_id
+    mid   = movie_id
     count = 0
-    valid_types = {"flatrate", "rent", "buy", "free", "ads"}
 
-    cur.execute("DELETE FROM Movie_Watch_Provider WHERE movie_id = %s", (m_id,))
+    cur.execute("DELETE FROM Movie_Keyword WHERE movie_id = %s", (mid,))
 
-    for country_code, avail in data["result"].item():
-        if len(country_code) != 2:
+    for kw in (data.get("keywords") or []):
+        kid = kw.get("id")
+        if not kid:
             continue
 
         cur.execute(
-            """ INSERT INTO Country (iso_3166-1, english_name, native_name)
-                VALUES (%s, %s. '')
-                ON CONFLICT (iso_3166_1) DO NOTHING""", (country_code, country_code)
+            """INSERT INTO Keyword (keyword_id, name)
+               VALUES (%s,%s) ON CONFLICT (keyword_id) DO UPDATE SET name=EXCLUDED.name""",
+            (kid, kw.get("name", ""))
         )
-        for avail_type, providers in avail.items():
-            if avail_type not in valid_types or not isinstance(providers, list):
-                continue
-            for p in providers:
-                p_id = p.get("provider_id")
-                if not p_id:
-                    continue
 
-                if p_id not in provider_map:
-                    cur.execute(
-                        """
-                        INSERT INTO watch_provider (provider_id, tmdb_provider_id, provider_name, logo_path)
-                        VALUES (%s,%s,%s,%s)
-                        ON CONFLICT (tmdb_provider_id) DO NOTHING
-                        """, (p_id,
-                            p_id,
-                            p.get("provider_name", ""),
-                            p.get("logo_path", "")
-                            )
-                    )
-                    provider_map[p_id] = p_id
+        cur.execute(
+            """INSERT INTO Movie_Keyword (movie_id, keyword_id)
+               VALUES (%s,%s) ON CONFLICT DO NOTHING""",
+            (mid, kid)
+        )
+        count += 1
 
-                cur.execute(
-                    """
-                    INSERT INTO Movie_Watch_Provider (movie_id, provider_id, iso_3166_1, availability_type, display_priority)
-                    VALUES(%s,%s,%s,%s,%s)
-                    ON CONFLICT (movie_id, provider_id, iso_3166_1, availability_type)
-                    DO UPDATE SET display_priority = EXCLUDED.display_priority
-                    """,
-                    (m_id, p_id, country_code, avail_type, p.get("display_priority", 0))
-                )
-                count += 1
     return count
+
 
 def _load_movie_certifications(cur, movie_id: int):
     data = tmdb_get(f"/movie/{movie_id}/release_dates")
@@ -480,45 +457,45 @@ def run_movie_etl(movie_id: int):
     etl = ETLLogger(f"movie/{movie_id}", tmdb_id = movie_id, media_type = "movie")
     etl.start()
     
-    logger.info("  → [movie] id=%d: bắt đầu ETL...", movie_id)
-
+    logger.info("  → [movie] id=%d: starting ETL...", movie_id)
+ 
     try:
         conn = __import__("db_utils").get_connection()
         try:
             with conn:
                 with conn.cursor() as cur:
-
+ 
                     dept_map, job_map = load_dept_job_maps(conn)
                     provider_map      = load_provider_map(conn)
                     genre_map         = load_genre_map(conn)
-
+ 
                     ok, movie_data = _load_movie_core(cur, movie_id, genre_map)
                     if not ok:
-                        raise ValueError(f"movie/{movie_id}: API trả về None hoặc lỗi")
-
+                        raise ValueError(f"movie/{movie_id}: API returned None or error")
+ 
                     records = 1
-
+ 
                     n = _load_movie_credits(cur, movie_id, dept_map, job_map)
-                    logger.info("    credits: %d người", n)
+                    logger.info("    credits: %d people", n)
                     records += n
-
+ 
                     n = _load_movie_keywords(cur, movie_id)
                     logger.info("    keywords: %d", n)
                     records += n
-
+ 
                     n = _load_movie_watch_providers(cur, movie_id, provider_map)
                     logger.info("    watch_providers: %d links", n)
                     records += n
-
+ 
                     n = _load_movie_reviews(cur, movie_id)
                     if n:
                         logger.info("    reviews: %d", n)
                     records += n
-
+ 
             logger.info("  ✓ [movie] id=%d: DONE (%d records)", movie_id, records)
             etl.finish("success", records=records)
             return True
-
+ 
         except Exception as e:
             conn.rollback()
             logger.error("  ✗ [movie] id=%d: FAILED — %s", movie_id, e)
@@ -526,20 +503,20 @@ def run_movie_etl(movie_id: int):
             return False
         finally:
             conn.close()
-
+ 
     except Exception as e:
         logger.error("  ✗ [movie] id=%d: DB connection error — %s", movie_id, e)
         etl.finish("failed", error=str(e))
         return False
-
+ 
 def run_movies_etl(movie_ids: list[int], stop_on_error: bool = False):
     success = 0
     failed  = 0
-
+ 
     logger.info("=" * 60)
     logger.info("START: Movie ETL — %d movie(s)", len(movie_ids))
     logger.info("=" * 60)
-
+ 
     for mid in movie_ids:
         ok = run_movie_etl(mid)
         if ok:
@@ -547,9 +524,9 @@ def run_movies_etl(movie_ids: list[int], stop_on_error: bool = False):
         else:
             failed += 1
             if stop_on_error:
-                logger.error("stop_on_error=True: dừng tại movie_id=%d", mid)
+                logger.error("stop_on_error=True: stopping at movie_id=%d", mid)
                 break
-
+ 
     logger.info("=" * 60)
     logger.info("DONE: success=%d / failed=%d / total=%d",
                 success, failed, success + failed)
