@@ -123,7 +123,7 @@ def _load_tv_serie_core(cur, series_id: int):
                     )
 
     
-    cur.execute("DELETE FROM tv_country WHERE movie_id = %s", (tv_s_id,))
+    cur.execute("DELETE FROM tv_country WHERE series_id = %s", (tv_s_id,))
     for c in (data.get("production_countries") or []):
         if c.get("iso_3166_1"):
             cur.execute(
@@ -132,7 +132,7 @@ def _load_tv_serie_core(cur, series_id: int):
                 (tv_s_id, c["iso_3166_1"])
             )
 
-    cur.execute("DELETE FROM tv_language WHERE movie_id = %s", (tv_s_id,))
+    cur.execute("DELETE FROM tv_language WHERE series_id = %s", (tv_s_id,))
     orig_lang = data.get("original_language", "en")
     cur.execute(
         """INSERT INTO tv_language (series_id, iso_639_1, language_type)
@@ -677,4 +677,3 @@ def run_tv_series_batch_etl(series_ids: list[int], stop_on_error: bool = False):
                  success, failed, success + failed)
     logger.info("=" * 60)
     return success, failed
- 
