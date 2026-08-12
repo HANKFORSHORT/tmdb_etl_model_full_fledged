@@ -315,30 +315,30 @@ def _load_movie_certifications(cur, movie_id: int):
     data = tmdb_get(f"/movie/{movie_id}/release_dates")
     if not data or "results" not in data:
         return 0
-
+ 
     m_id = movie_id
     count = 0
-
+ 
     cur.execute("DELETE FROM Movie_Certification WHERE movie_id = %s", (m_id,))
-
+ 
     for country_entry in (data.get("results") or []):
         country_code = country_entry.get("iso_3166_1")
         if not country_code or len(country_code) != 2:
             continue
-
+ 
         for release in (country_entry.get("release_dates") or []):
             certification = release.get("certification")
             if not certification:
                 continue
-
+ 
             language_code = release.get("iso_639_1") or ""
             release_type = release.get("type")
             if release_type is None:
                 continue
-
+ 
             cur.execute(
                 """SELECT cert_std_id FROM Certification_Standard
-                   WHERE country_code = %s AND certification = %s""",
+                   WHERE iso_3166_1 = %s AND certification = %s AND media_type = 'movie'""",
                 (country_code, certification)
             )
             row = cur.fetchone()
@@ -349,7 +349,7 @@ def _load_movie_certifications(cur, movie_id: int):
                 )
                 continue
             cert_std_id = row[0]
-
+ 
             cur.execute(
                 """
                 INSERT INTO Movie_Certification
@@ -363,7 +363,7 @@ def _load_movie_certifications(cur, movie_id: int):
                  cert_std_id, release.get("descriptors") or [])
             )
             count += 1
-
+ 
     return count
 
 def _load_movie_watch_providers(cur, movie_id: int, provider_map: dict):
