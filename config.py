@@ -2,6 +2,8 @@
 import os
 from dotenv import load_dotenv
 
+load_dotenv()
+
 DB_CONFIG = {
     "dbname":   os.environ["DB_NAME"],
     "user":     os.environ["DB_USER"],
@@ -16,8 +18,8 @@ TMDB_BASE_URL  = os.environ.get("TMDB_BASE_URL", "https://api.themoviedb.org/3")
 
 
 # config -------
-FETCH_FULL_PERSON_DETAIL = FalseIMPORT_REVIEWS = False
+FETCH_FULL_PERSON_DETAIL = False
+IMPORT_REVIEWS = False
 TMDB_SYSTEM_USER_ID = 1
 API_DELAY_SECONDS = 0.05
 ENABLE_ETL_LOG = True
-
