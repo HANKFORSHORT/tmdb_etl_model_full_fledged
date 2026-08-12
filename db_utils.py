@@ -84,7 +84,7 @@ class ETLLogger:
             return 
         sql = """
             UPDATE ETL_Log
-            SET status = %s, records_processed = %s, error_message = %s, finish_at %s
+            SET status = %s, records_processed = %s, error_message = %s, finished_at = %s
             WHERE log_id = %s
         """
 
@@ -102,7 +102,7 @@ def load_dept_job_maps(conn) -> tuple [dict, dict]:
         dept_map = {row[1]: row[0] for row in cur.fetchall()}
 
         cur.execute("""
-            SELECT j.job. d.department_name, j.job_name
+            SELECT j.job_id, d.department_name, j.job_name
             FROM Job j
             JOIN Department d ON d.department_id = j.department_id
         """)
@@ -127,3 +127,5 @@ def load_provider_map(conn) -> dict:
     with conn.cursor() as cur:
         cur.execute("SELECT provider_id, tmdb_provider_id FROM Watch_Provider")
         return {r[1]: r[0] for r in cur.fetchall()}
+
+    
