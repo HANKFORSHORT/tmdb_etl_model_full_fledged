@@ -12,13 +12,13 @@ def load_languages():
 
     data = tmdb_get("/configuration/languages")
     if not data: 
-        etl.finish("falied", error = "API call returned None")
-        return
+        etl.finish("failed", error = "API call returned None")
+        return False
     
     sql = """
-        INSERT INTO Language (iso_639_1, english_name, native_nam)
+        INSERT INTO Language (iso_639_1, english_name, native_name)
         VALUES (%s, %s, %s)
-        ON CONFLIT (iso_639_1) DO UIPDATE
+        ON CONFLICT (iso_639_1) DO UPDATE
             SET native_name = EXCLUDED.native_name
     """
 
@@ -40,9 +40,11 @@ def load_languages():
             cur.executemany(sql, rows)
         logger.info("Language: upserted %d rows", len(rows))
         etl.finish("success", records = len(rows))
+        return True
     except Exception as e:
         logger.error("Language load failed: %s", e)
         etl.finish("failed", error = str(e))
+        return False
 
 
 
@@ -54,7 +56,7 @@ def load_genres_movie():
     data = tmdb_get("/genre/movie/list", params = {"language" : "en"})
     if not data or "genres" not in data:
         etl.finish("failed", error = "API call returned None or bad format")
-        return 
+        return False
     
     sql = """
         INSERT INTO Genre (genre_id, name, media_type)
@@ -70,19 +72,21 @@ def load_genres_movie():
             cur.executemany(sql, rows)
         logger.info("Genre(movie): upserted %d rows", len(rows))
         etl.finish("success", records=len(rows))
+        return True
     except Exception as e:
         logger.error("Genre(movie) load failed: %s", e)
         etl.finish("failed", error=str(e))
+        return False
 
 def load_genres_tv():
 
     etl = ETLLogger("genre/tv/list", media_type = "reference")
     etl.start()
 
-    data = tmdb_get("genre/tv/list", params={"language" : "en"})
+    data = tmdb_get("/genre/tv/list", params={"language" : "en"})
     if not data or "genres" not in data:
         etl.finish("failed", error = "API call returned None or bad format")
-        return
+        return False
 
     sql = """
             INSERT INTO Genre (genre_id, name, media_type)
@@ -99,9 +103,11 @@ def load_genres_tv():
             cur.executemany(sql, rows)
         logger.info("Genre(tv): upserted %d rows", len(rows))
         etl.finish("success", records=len(rows))
+        return True
     except Exception as e:
         logger.error("Genre(tv) load failed: %s", e)
         etl.finish("failed", error=str(e))
+        return False
 
 
 def load_departments_and_jobs():
@@ -112,7 +118,7 @@ def load_departments_and_jobs():
     data = tmdb_get("/configuration/jobs")
     if not data: 
         etl.finish("failed", error = "API call return None")
-        return
+        return False
     
     dept_sql = """
         INSERT INTO Department (department_name)
@@ -139,11 +145,11 @@ def load_departments_and_jobs():
                 if not dept_name:
                     continue
 
-                cur.execute(dept_sql, (dept_name))
+                cur.execute(dept_sql, (dept_name,))
                 row = cur.fetchone()
                 if row is None:
                     cur.execute (
-                        "SELECT department_id FROM Department WHERE department_name = %s", (dept_name)
+                        "SELECT department_id FROM Department WHERE department_name = %s", (dept_name,)
                     )
                     row = cur.fetchone()
                 dept_id = row[0]
@@ -155,9 +161,11 @@ def load_departments_and_jobs():
 
         logger.info("Department: %d | Job: %d rows processed", total_depts, total_jobs)
         etl.finish("success", records=total_depts + total_jobs)
+        return True
     except Exception as e:
         logger.error("Department/Job load failed: %s", e)
         etl.finish("failed", error=str(e))
+        return False
 
 
 
@@ -169,7 +177,7 @@ def load_certifications_movie():
     data = tmdb_get("/certification/movie/list")
     if not data or "certifications" not in data:
         etl.finish("failed", error="API call returned None or bad format")
-        return
+        return False
 
     sql = """
         INSERT INTO Certification_Standard
@@ -201,9 +209,11 @@ def load_certifications_movie():
             cur.executemany(sql, rows)
         logger.info("Certification_Standard(movie): upserted %d rows", len(rows))
         etl.finish("success", records=len(rows))
+        return True
     except Exception as e:
         logger.error("Certification_Standard(movie): load failed: %s", e)
         etl.finish("failed", error=str(e))
+        return False
 
 
 def load_certifications_tv():
@@ -213,7 +223,7 @@ def load_certifications_tv():
     data = tmdb_get("/certification/tv/list")
     if not data or "certifications" not in data:
         etl.finish("failed", error="API call returned None or bad format")
-        return
+        return False
 
     sql = """
         INSERT INTO Certification_Standard
@@ -245,6 +255,8 @@ def load_certifications_tv():
             cur.executemany(sql, rows)
         logger.info("Certification_Standard(tv): upserted %d rows", len(rows))
         etl.finish("success", records=len(rows))
+        return True
     except Exception as e:
         logger.error("Certification_Standard(tv): load failed: %s", e)
         etl.finish("failed", error=str(e))
+        return False
