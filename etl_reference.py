@@ -59,9 +59,9 @@ def load_genres_movie():
         return False
     
     sql = """
-        INSERT INTO Genre (genre_id, name, media_type)
+        INSERT INTO Genre (tmdb_id, name, media_type)
         VALUES (%s, %s, 'movie')
-        ON CONFLICT (genre_id, media_type) DO UPDATE
+        ON CONFLICT (tmdb_id, media_type) DO UPDATE
             SET name = EXCLUDED.name
     """
 
@@ -89,9 +89,9 @@ def load_genres_tv():
         return False
 
     sql = """
-            INSERT INTO Genre (genre_id, name, media_type)
+            INSERT INTO Genre (tmdb_id, name, media_type)
             VALUES (%s, %s, 'tv')
-            ON CONFLICT (genre_id, media_type) DO UPDATE
+            ON CONFLICT (tmdb_id, media_type) DO UPDATE
                 SET name = EXCLUDED.name
         """
 

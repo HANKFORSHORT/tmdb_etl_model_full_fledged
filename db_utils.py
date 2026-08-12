@@ -128,4 +128,13 @@ def load_provider_map(conn) -> dict:
         cur.execute("SELECT provider_id, tmdb_provider_id FROM Watch_Provider")
         return {r[1]: r[0] for r in cur.fetchall()}
 
-    
+
+def load_genre_map(conn) -> dict:
+    """
+    Returns {(tmdb_id, media_type): genre_id}. genre_id is now a surrogate
+    key (auto-increment), separate from TMDb's own genre id, since movie
+    and TV genres can share a tmdb_id but are distinct rows.
+    """
+    with conn.cursor() as cur:
+        cur.execute("SELECT genre_id, tmdb_id, media_type FROM Genre")
+        return {(r[1], r[2]): r[0] for r in cur.fetchall()}

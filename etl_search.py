@@ -38,11 +38,7 @@ def _upsert_person_minimal(cur, p: dict):
 
 
 def _upsert_person_full(cur, person_id: int):
-    """
-    Gọi API GET /person/{person_id} để lấy đầy đủ thông tin,
-    rồi upsert Person + Person_AKA.
-    Chỉ gọi khi FETCH_FULL_PERSON_DETAIL=True.
-    """
+
     data = tmdb_get(f"/person/{person_id}", params={"language": "en-US"})
     if not data:
         return
@@ -51,7 +47,6 @@ def _upsert_person_full(cur, person_id: int):
     if gender not in (0, 1, 2, 3):
         gender = 0
 
-    # ── Person ──────────────────────────────────────────────────────────────
     sql_person = """
         INSERT INTO Person (
             person_id, tmdb_person_id, name, original_name, biography,
@@ -125,6 +120,38 @@ def _upsert_company(cur, c: dict):
         c.get("logo_path"),
         origin,
     ))
+
+def _get_or_create_genre_id(cur, genre_map: dict, tmdb_genre_id: int, media_type: str, name: str = None) -> int:
+    """
+    Resolve a TMDb genre id + media_type to the surrogate Genre.genre_id,
+    using the in-memory genre_map (loaded once per run via
+    db_utils.load_genre_map) as a cache. Movie and TV genres can share the
+    same tmdb_genre_id, so (tmdb_id, media_type) is what identifies a row.
+
+    Normally every genre already exists because the reference ETL
+    (load_genres_movie / load_genres_tv) runs first — the on-the-fly insert
+    here is just a fallback so movie/TV ETL doesn't hard-fail if a new
+    genre id shows up before the next reference-data refresh.
+    """
+    key = (tmdb_genre_id, media_type)
+    genre_id = genre_map.get(key)
+    if genre_id is not None:
+        return genre_id
+
+    cur.execute(
+        """
+        INSERT INTO Genre (tmdb_id, name, media_type)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (tmdb_id, media_type) DO UPDATE
+            SET name = EXCLUDED.name
+        RETURNING genre_id
+        """,
+        (tmdb_genre_id, name or "", media_type)
+    )
+    genre_id = cur.fetchone()[0]
+    genre_map[key] = genre_id
+    return genre_id
+
 
 def _upsert_collection(cur, col: dict):
     """col = data['belongs_to_collection'] (có thể None)."""

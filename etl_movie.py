@@ -7,14 +7,14 @@
 #             →  (optional) User_Review
 
 import logging
-from db_utils import tmdb_get, ETLLogger, load_dept_job_maps, load_provider_map
+from db_utils import tmdb_get, ETLLogger, load_dept_job_maps, load_provider_map, load_genre_map
 import config
 from etl_search import (_upsert_person_full, _upsert_person_minimal, 
-                        _upsert_company, _upsert_collection)
+                        _upsert_company, _upsert_collection, _get_or_create_genre_id)
 
 logger = logging.getLogger(__name__)
 
-def _load_movie_core(cur, movie_id: int):
+def _load_movie_core(cur, movie_id: int, genre_map: dict):
 
     data = tmdb_get(f"/movie/{movie_id}", params={"language": "en-US"})
     if not data or "id" not in data:
@@ -105,10 +105,11 @@ def _load_movie_core(cur, movie_id: int):
     cur.execute("DELETE FROM Movie_Genre WHERE movie_id = %s", (m_id,))
     for g in (data.get("genres") or []):
         if g.get("id"):
+            genre_id = _get_or_create_genre_id(cur, genre_map, g["id"], "movie", g.get("name"))
             cur.execute(
                 """INSERT INTO Movie_Genre (movie_id, genre_id)
                    VALUES (%s,%s) ON CONFLICT DO NOTHING""",
-                (m_id, g["id"])
+                (m_id, genre_id)
             )
 
     cur.execute("DELETE FROM Movie_Country WHERE movie_id = %s", (m_id,))
@@ -489,8 +490,9 @@ def run_movie_etl(movie_id: int):
 
                     dept_map, job_map = load_dept_job_maps(conn)
                     provider_map      = load_provider_map(conn)
+                    genre_map         = load_genre_map(conn)
 
-                    ok, movie_data = _load_movie_core(cur, movie_id)
+                    ok, movie_data = _load_movie_core(cur, movie_id, genre_map)
                     if not ok:
                         raise ValueError(f"movie/{movie_id}: API trả về None hoặc lỗi")
 

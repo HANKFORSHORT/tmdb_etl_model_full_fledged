@@ -16,14 +16,14 @@
 
 import logging
 from db_utils import (tmdb_get, ETLLogger, 
-                      load_dept_job_maps, load_provider_map)
+                      load_dept_job_maps, load_provider_map, load_genre_map)
 import config
 from etl_search import (_upsert_person_full, _upsert_person_minimal, 
-                        _upsert_company, _upsert_collection)
+                        _upsert_company, _upsert_collection, _get_or_create_genre_id)
 
 logger = logging.getLogger(__name__)
 
-def _load_tv_serie_core(cur, series_id: int):
+def _load_tv_serie_core(cur, series_id: int, genre_map: dict):
     data = tmdb_get(f"/tv/{series_id}", params={"language": "en-US"})
     if not data or "id" not in data:
         return False, None
@@ -116,10 +116,11 @@ def _load_tv_serie_core(cur, series_id: int):
     cur.execute("DELETE FROM tv_genre where series_id=%s", (tv_s_id,))
     for g in (data.get("genres") or []):
         if g.get("id"):
+            genre_id = _get_or_create_genre_id(cur, genre_map, g["id"], "tv", g.get("name"))
             cur.execute(
                 """ INSERT INTO tv_genre (series_id, genre_id)
                     VALUES (%s,%s) ON CONFLICT DO NOTHING""",
-                    (tv_s_id, g["id"])
+                    (tv_s_id, genre_id)
                     )
 
     
@@ -604,8 +605,9 @@ def run_tv_series_etl(series_id: int):
                 with conn.cursor() as cur:
                     dept_map, job_map = load_dept_job_maps(conn)
                     provider_map = load_provider_map(conn)
+                    genre_map = load_genre_map(conn)
  
-                    ok, series_data = _load_tv_serie_core(cur, series_id)
+                    ok, series_data = _load_tv_serie_core(cur, series_id, genre_map)
                     if not ok:
                         raise ValueError(f"tv/{series_id}: API trả về None hoặc lỗi")
  
