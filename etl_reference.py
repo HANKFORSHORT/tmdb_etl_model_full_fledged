@@ -74,6 +74,34 @@ def load_genres_movie():
         logger.error("Genre(movie) load failed: %s", e)
         etl.finish("failed", error=str(e))
 
+def load_genres_tv():
+
+    etl = ETLLogger("genre/tv/list", media_type = "reference")
+    etl.start()
+
+    data = tmdb_get("genre/tv/list", params={"language" : "en"})
+    if not data or "genres" not in data:
+        etl.finish("failed", error = "API call returned None or bad format")
+        return
+
+    sql = """
+            INSERT INTO Genre (genre_id, name, media_type)
+            VALUES (%s, %s, 'tv')
+            ON CONFLICT (genre_id, media_type) DO UPDATE
+                SET name = EXCLUDED.name
+        """
+
+    
+    rows = [(g["id"], g["name"]) for g in data["genres"]]
+
+    try:
+        with db_transaction() as (conn, cur):
+            cur.executemany(sql, rows)
+        logger.info("Genre(tv): upserted %d rows", len(rows))
+        etl.finish("success", records=len(rows))
+    except Exception as e:
+        logger.error("Genre(tv) load failed: %s", e)
+        etl.finish("failed", error=str(e))
 
 
 def load_departments_and_jobs():
@@ -174,5 +202,49 @@ def load_certifications_movie():
         logger.info("Certification_Standard(movie): upserted %d rows", len(rows))
         etl.finish("success", records=len(rows))
     except Exception as e:
-        logger.error("Certification_Standard load failed: %s", e)
+        logger.error("Certification_Standard(movie): load failed: %s", e)
+        etl.finish("failed", error=str(e))
+
+
+def load_certifications_tv():
+    etl = ETLLogger("certification/tv/list", media_type="reference")
+    etl.start()
+
+    data = tmdb_get("/certification/tv/list")
+    if not data or "certifications" not in data:
+        etl.finish("failed", error="API call returned None or bad format")
+        return
+
+    sql = """
+        INSERT INTO Certification_Standard
+            (iso_3166_1, certification, meaning, cert_order, media_type)
+        VALUES (%s, %s, %s, %s, 'tv')
+        ON CONFLICT (iso_3166_1, certification, media_type) DO UPDATE
+            SET meaning     = EXCLUDED.meaning,
+                cert_order  = EXCLUDED.cert_order
+    """
+    rows = []
+    for country_code, certs in data["certifications"].items():
+        if len(country_code) != 2:    
+            continue                      
+        for c in certs:
+            raw_order = c.get("order", 0)
+            cert_order = max(1, int(raw_order) + 1) if raw_order == 0 else max(1, int(raw_order))
+            
+            certification = (c.get("certification") or "")[:20]   # ← truncate 20 ký tự
+
+            rows.append((
+                country_code,
+                certification, 
+                c.get("meaning") or "",
+                cert_order,
+            ))
+
+    try:
+        with db_transaction() as (conn, cur):
+            cur.executemany(sql, rows)
+        logger.info("Certification_Standard(tv): upserted %d rows", len(rows))
+        etl.finish("success", records=len(rows))
+    except Exception as e:
+        logger.error("Certification_Standard(tv): load failed: %s", e)
         etl.finish("failed", error=str(e))

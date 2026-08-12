@@ -21,6 +21,8 @@ import config
 from etl_search import (_upsert_person_full, _upsert_person_minimal, 
                         _upsert_company, _upsert_collection)
 
+logger = logging.getLogger(__name__)
+
 def _load_tv_serie_core(cur, series_id: int):
     data = tmdb_get(f"/tv/{series_id}", params={"language": "en-US"})
     if not data or "id" not in data:
@@ -398,11 +400,7 @@ def _load_tv_series_certifications(cur, series_id: int):
  
  
 def _load_episode_cast_crew(cur, episode_id: int, ep: dict, dept_map: dict, job_map: dict):
-    """
-    Episode_Cast lưu guest_stars (is_guest=True) — TMDb không trả "cast" riêng
-    cho từng episode, chỉ có main cast ở cấp series (TV_Cast) và guest_stars
-    ở cấp episode.
-    """
+
     cast_count = 0
     crew_count = 0
  
@@ -594,89 +592,89 @@ def _load_tv_seasons_and_episodes(cur, series_id: int, seasons_summary: list,
     return season_count, episode_count, cast_count, crew_count
  
  
-# def run_tv_series_etl(series_id: int):
-#     etl = ETLLogger(f"tv/{series_id}", tmdb_id=series_id, media_type="tv")
-#     etl.start()
-#     logger.info(" → [tv] id=%d: bắt đầu ETL...", series_id)
+def run_tv_series_etl(series_id: int):
+    etl = ETLLogger(f"tv/{series_id}", tmdb_id=series_id, media_type="tv")
+    etl.start()
+    logger.info(" → [tv] id=%d: bắt đầu ETL...", series_id)
  
-#     try:
-#         conn = __import__("db_utils").get_connection()
-#         try:
-#             with conn:
-#                 with conn.cursor() as cur:
-#                     dept_map, job_map = load_dept_job_maps(conn)
-#                     provider_map = load_provider_map(conn)
+    try:
+        conn = __import__("db_utils").get_connection()
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    dept_map, job_map = load_dept_job_maps(conn)
+                    provider_map = load_provider_map(conn)
  
-#                     ok, series_data = _load_tv_serie_core(cur, series_id)
-#                     if not ok:
-#                         raise ValueError(f"tv/{series_id}: API trả về None hoặc lỗi")
+                    ok, series_data = _load_tv_serie_core(cur, series_id)
+                    if not ok:
+                        raise ValueError(f"tv/{series_id}: API trả về None hoặc lỗi")
  
-#                     records = 1
+                    records = 1
  
-#                     n = _load_tv_series_credits(cur, series_id, dept_map, job_map)
-#                     logger.info("    credits: %d người", n)
-#                     records += n
+                    n = _load_tv_series_credits(cur, series_id, dept_map, job_map)
+                    logger.info("    credits: %d người", n)
+                    records += n
  
-#                     n = _load_tv_series_keywords(cur, series_id)
-#                     logger.info("    keywords: %d", n)
-#                     records += n
+                    n = _load_tv_series_keywords(cur, series_id)
+                    logger.info("    keywords: %d", n)
+                    records += n
  
-#                     n = _load_tv_series_watch_providers(cur, series_id, provider_map)
-#                     logger.info("    watch_providers: %d links", n)
-#                     records += n
+                    n = _load_tv_series_watch_providers(cur, series_id, provider_map)
+                    logger.info("    watch_providers: %d links", n)
+                    records += n
  
-#                     n = _load_tv_series_certifications(cur, series_id)
-#                     logger.info("    certifications: %d", n)
-#                     records += n
+                    n = _load_tv_series_certifications(cur, series_id)
+                    logger.info("    certifications: %d", n)
+                    records += n
  
-#                     n_season, n_ep, n_cast, n_crew = _load_tv_seasons_and_episodes(
-#                         cur, series_id, series_data.get("seasons") or [], dept_map, job_map
-#                     )
-#                     logger.info(
-#                         "    seasons: %d, episodes: %d, episode_cast: %d, episode_crew: %d",
-#                         n_season, n_ep, n_cast, n_crew
-#                     )
-#                     records += n_season + n_ep + n_cast + n_crew
+                    n_season, n_ep, n_cast, n_crew = _load_tv_seasons_and_episodes(
+                        cur, series_id, series_data.get("seasons") or [], dept_map, job_map
+                    )
+                    logger.info(
+                        "    seasons: %d, episodes: %d, episode_cast: %d, episode_crew: %d",
+                        n_season, n_ep, n_cast, n_crew
+                    )
+                    records += n_season + n_ep + n_cast + n_crew
  
-#                     logger.info(" ✓ [tv] id=%d: DONE (%d records)", series_id, records)
-#                     etl.finish("success", records=records)
-#                     return True
+                    logger.info(" ✓ [tv] id=%d: DONE (%d records)", series_id, records)
+                    etl.finish("success", records=records)
+                    return True
  
-#         except Exception as e:
-#             conn.rollback()
-#             logger.error(" ✗ [tv] id=%d: FAILED — %s", series_id, e)
-#             etl.finish("failed", error=str(e))
-#             return False
-#         finally:
-#             conn.close()
+        except Exception as e:
+            conn.rollback()
+            logger.error(" ✗ [tv] id=%d: FAILED — %s", series_id, e)
+            etl.finish("failed", error=str(e))
+            return False
+        finally:
+            conn.close()
  
-#     except Exception as e:
-#         logger.error(" ✗ [tv] id=%d: DB connection error — %s", series_id, e)
-#         etl.finish("failed", error=str(e))
-#         return False
+    except Exception as e:
+        logger.error(" ✗ [tv] id=%d: DB connection error — %s", series_id, e)
+        etl.finish("failed", error=str(e))
+        return False
  
  
-# def run_tv_series_batch_etl(series_ids: list[int], stop_on_error: bool = False):
-#     success = 0
-#     failed = 0
+def run_tv_series_batch_etl(series_ids: list[int], stop_on_error: bool = False):
+    success = 0
+    failed = 0
  
-#     logger.info("=" * 60)
-#     logger.info("START: TV Series ETL — %d series", len(series_ids))
-#     logger.info("=" * 60)
+    logger.info("=" * 60)
+    logger.info("START: TV Series ETL — %d series", len(series_ids))
+    logger.info("=" * 60)
  
-#     for sid in series_ids:
-#         ok = run_tv_series_etl(sid)
-#         if ok:
-#             success += 1
-#         else:
-#             failed += 1
-#             if stop_on_error:
-#                 logger.error("stop_on_error=True: dừng tại series_id=%d", sid)
-#                 break
+    for sid in series_ids:
+        ok = run_tv_series_etl(sid)
+        if ok:
+            success += 1
+        else:
+            failed += 1
+            if stop_on_error:
+                logger.error("stop_on_error=True: dừng tại series_id=%d", sid)
+                break
  
-#     logger.info("=" * 60)
-#     logger.info("DONE: success=%d / failed=%d / total=%d",
-#                  success, failed, success + failed)
-#     logger.info("=" * 60)
-#     return success, failed
+    logger.info("=" * 60)
+    logger.info("DONE: success=%d / failed=%d / total=%d",
+                 success, failed, success + failed)
+    logger.info("=" * 60)
+    return success, failed
  
