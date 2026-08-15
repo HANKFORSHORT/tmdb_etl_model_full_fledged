@@ -1,5 +1,4 @@
-from db_utils import tmdb_get
-
+from tmdb_etl_model_full_fledged.etl.db_utils import tmdb_get
 
 
 def _upsert_person_minimal(cur, p: dict):

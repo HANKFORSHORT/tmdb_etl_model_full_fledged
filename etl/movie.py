@@ -1,7 +1,7 @@
 import logging
 from tmdb_etl_model_full_fledged.etl.db_utils import tmdb_get, ETLLogger, load_dept_job_maps, load_provider_map, load_genre_map
 import config
-from tmdb_etl_model_full_fledged.etl.etl_shared import (_upsert_person_full, _upsert_person_minimal, 
+from tmdb_etl_model_full_fledged.etl.shared import (_upsert_person_full, _upsert_person_minimal, 
                         _upsert_company, _upsert_collection, _get_or_create_genre_id)
 
 logger = logging.getLogger(__name__)

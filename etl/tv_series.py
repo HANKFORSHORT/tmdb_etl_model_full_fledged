@@ -1,24 +1,8 @@
-# Movie cluster:
-#   Collection → Movie → Movie_Genre/Country/Language/Company
-#   → Person → Movie_Cast/Movie_Crew
-#   → Keyword → Movie_Keyword
-#   → Movie_Certification → Movie_Watch_Provider
-#   → (optional) User_Review
-
-# TV cluster:
-#   TV_Series → TV_Genre/Country/Language/Company/Certification
-#   → Person (dùng chung bảng Person đã có)
-#   → TV_Cast/TV_Crew/TV_Creator
-#   → Keyword → TV_Keyword
-#   → TV_Watch_Provider
-#   → TV_Season → TV_Episode
-#   → Episode_Cast/Episode_Crew
-
 import logging
-from db_utils import (tmdb_get, ETLLogger, 
+from tmdb_etl_model_full_fledged.etl.db_utils import (tmdb_get, ETLLogger, 
                       load_dept_job_maps, load_provider_map, load_genre_map)
 import config
-from etl_search import (_upsert_person_full, _upsert_person_minimal, 
+from tmdb_etl_model_full_fledged.etl.shared import (_upsert_person_full, _upsert_person_minimal, 
                         _upsert_company, _upsert_collection, _get_or_create_genre_id)
 
 logger = logging.getLogger(__name__)

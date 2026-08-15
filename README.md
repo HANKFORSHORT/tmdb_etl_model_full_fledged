@@ -1,3 +1,5 @@
+```
+
 tmdb_etl_model_full_fledged/
 ├── run_etl.py
 ├── config.py
@@ -12,3 +14,4 @@ tmdb_etl_model_full_fledged/
     ├── reference.py
     ├── movie.py
     └── tv_series.py
+```

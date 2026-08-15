@@ -1,5 +1,5 @@
 import logging
-from db_utils import tmdb_get, db_transaction, ETLLogger
+from tmdb_etl_model_full_fledged.etl.db_utils import tmdb_get, db_transaction, ETLLogger
 
 logger = logging.getLogger(__name__)
 

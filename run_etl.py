@@ -35,9 +35,9 @@ import logging
 import sys
 from pathlib import Path
 
-from etl_movie import run_movies_etl
-from etl_tv_series import run_tv_series_batch_etl
-from etl_reference import (
+from tmdb_etl_model_full_fledged.etl.movie import run_movies_etl
+from tmdb_etl_model_full_fledged.etl.tv_series import run_tv_series_batch_etl
+from tmdb_etl_model_full_fledged.etl.reference import (
     load_languages,
     load_genres_movie,
     load_genres_tv,
