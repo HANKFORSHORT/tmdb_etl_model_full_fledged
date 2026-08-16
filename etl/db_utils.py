@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import psycopg2
 import requests
-import config
+from tmdb_etl_model_full_fledged import config
 
 
 
