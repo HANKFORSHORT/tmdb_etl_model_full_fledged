@@ -1,4 +1,0 @@
-pycopg2
-pandas
-ipykernel   
-request
